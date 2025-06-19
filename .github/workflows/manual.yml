@@ -1,0 +1,15 @@
+# .github/workflows/daily-call.yml
+name: Daily API Call - Dividendos
+
+on:
+  schedule:
+    - cron: '0 7 * * *' # 6h UTC todos os dias
+  workflow_dispatch:
+
+jobs:
+  call-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Chama a API do PVP em Railway
+        run: curl -X GET https://statusinvest-production.up.railway.app/dividendos
