@@ -63,9 +63,14 @@ async function scrapeStatusInvestDividendos() {
             if (!dividendosData) {
                 console.log(`Não foi possível encontrar a tabela de dividendos para ${fiiCode}`);
                 continue;
-            }
-
+            }            
+            
             const dividendoInfo = dividendosData?.length > 0 ? dividendosData[0] : null;
+            
+            // Converte vírgulas para pontos nos valores numéricos
+            if (dividendoInfo && dividendoInfo["VALOR"]) {
+                dividendoInfo["VALOR"] = dividendoInfo["VALOR"].replace(",", ".");
+            }
                 
             // Salva no Redis (TTL de 10 dias = 864000 segundos)
             await redis.set(cacheKey, JSON.stringify(dividendoInfo), 'EX', 864000);
