@@ -23,67 +23,59 @@ async function scrapeStatusInvestDividendos() {
             '--no-zygote']
     });
     
-    for (var index = 0; index < fiiList.length; index++){
-        let retry = 0, gotdividendos = false;
-        // Tenta obter os dividendos até 3 vezes
-        while(retry < 3 || gotdividendos == false){
-            const fiiCode = fiiList[index];
-            const cacheKey = `si_dividendos:${fiiCode}`;
-            
-            console.log(`Buscando dividendos do Status Invest para FII: ${fiiCode}`);
+    for (var index = 0; index < fiiList.length; index++){        
+        const fiiCode = fiiList[index];
+        const cacheKey = `si_dividendos:${fiiCode}`;
+        
+        console.log(`Buscando dividendos do Status Invest para FII: ${fiiCode}`);
 
-            const url = `https://statusinvest.com.br/fundos-imobiliarios/${fiiCode}`;
-            const page = await browser.newPage();
-            try {
-                await page.goto(url, { waitUntil: 'domcontentloaded'});
-                const html = await page.content();
-                await page.waitForSelector('#earning-section');            
-                const dividendosData = await page.evaluate(() => {
-                    // Seleciona a tabela de dividendos dentro de earning-section
-                    const table = document.querySelector('div#earning-section table');
-                    if (!table) return null;
+        const url = `https://statusinvest.com.br/fundos-imobiliarios/${fiiCode}`;
+        const page = await browser.newPage();
+        try {
+            await page.goto(url, { waitUntil: 'domcontentloaded'});
+            const html = await page.content();
+            await page.waitForSelector('#earning-section');            
+            const dividendosData = await page.evaluate(() => {
+                // Seleciona a tabela de dividendos dentro de earning-section
+                const table = document.querySelector('div#earning-section table');
+                if (!table) return null;
+                
+                // Extrai os cabeçalhos da tabela
+                const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.innerText.trim());
+                
+                // Extrai os dados de cada linha
+                const rows = Array.from(table.querySelectorAll('tbody tr')).map(row => {
+                    const cells = Array.from(row.querySelectorAll('td'));
+                    const rowData = {};
                     
-                    // Extrai os cabeçalhos da tabela
-                    const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.innerText.trim());
-                    
-                    // Extrai os dados de cada linha
-                    const rows = Array.from(table.querySelectorAll('tbody tr')).map(row => {
-                        const cells = Array.from(row.querySelectorAll('td'));
-                        const rowData = {};
-                        
-                        cells.forEach((cell, index) => {
-                            if (headers[index]) {
-                                rowData[headers[index]] = cell.innerText.trim();
-                            }
-                        });
-                        
-                        return rowData;
+                    cells.forEach((cell, index) => {
+                        if (headers[index]) {
+                            rowData[headers[index]] = cell.innerText.trim();
+                        }
                     });
                     
-                    return rows;
+                    return rowData;
                 });
-        
-                if (!dividendosData) {
-                    console.log(`Não foi possível encontrar a tabela de dividendos para ${fiiCode}`);
-                    continue;
-                }
-
-                const dividendoInfo = dividendosData?.length > 0 ? dividendosData[0] : null;
-                    
-                // Salva no Redis (TTL de 10 dias = 864000 segundos)
-                await redis.set(cacheKey, JSON.stringify(dividendoInfo), 'EX', 864000);
-                console.log(`Dados de dividendos do Status Invest salvos para ${fiiCode}: ${dividendosData.length} registros`);
-
-                gotdividendos = true;
-            } 
-            catch (err) {
-                console.log(`Erro ao obter os dividendos do Status Invest para ${fiiCode}: ${err.message}`);
-            }
-            finally{
-                await page.close();
+                
+                return rows;
+            });
+    
+            if (!dividendosData) {
+                console.log(`Não foi possível encontrar a tabela de dividendos para ${fiiCode}`);
+                continue;
             }
 
-            retry++;
+            const dividendoInfo = dividendosData?.length > 0 ? dividendosData[0] : null;
+                
+            // Salva no Redis (TTL de 10 dias = 864000 segundos)
+            await redis.set(cacheKey, JSON.stringify(dividendoInfo), 'EX', 864000);
+            console.log(`Dados de dividendos do Status Invest salvos para ${fiiCode}: ${dividendosData.length} registros`);
+        } 
+        catch (err) {
+            console.log(`Erro ao obter os dividendos do Status Invest para ${fiiCode}: ${err.message}`);
+        }
+        finally{
+            await page.close();
         }
     }
 
